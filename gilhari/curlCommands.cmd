@@ -2,8 +2,6 @@ REM  A script to invoke some sample curl commands on a Windows machine
 REM  against a running container image of the app-specific Gilhari microservice 
 REM  gilhari_simple_example:1.0.
 REM
-REM  This scripts populates some data but does not delete them.
-REM
 REM  The responses are recorded in a log file (curl.log).
 REM
 REM  Note that these curl commands use a default mapped port number of 80
@@ -11,7 +9,7 @@ REM  even though the port number exposed by the app-specific
 REM  microservice may be different (e.g., 8081) inside the container shell.
 REM
 REM  You may optionally specify a non-default port number as the first 
-REM  command line argument to this script. For example, to specify a 
+REM  command line argument to this script. For example, to spcify a 
 REM  port number of 8899, use the following command:
 REM     curlCommands 8899
 
@@ -31,8 +29,21 @@ echo. >> curl.log
 echo Using PORT number %port% >> curl.log
 echo. >> curl.log
 
+REM Check that the Gilhari microservice is up before sending any other requests
 echo ** Check the health of the Gilhari microservice >> curl.log
-curl -X GET "http://localhost:%port%/gilhari/v1/health/check" >> curl.log
+curl -fsS "http://localhost:%port%/gilhari/v1/health/check" >> curl.log 2>&1
+if errorlevel 1 (
+    echo. >> curl.log
+    echo The Gilhari microservice is not responding at http://localhost:%port%/gilhari/v1/ >> curl.log
+    echo The Gilhari microservice is not responding at http://localhost:%port%/gilhari/v1/
+    echo Start it first, e.g., gilhari\run_docker_app.cmd, and wait until it is ready.
+    exit /b 1
+)
+echo. >> curl.log
+echo. >> curl.log
+
+echo ** GET summary of the underlying object model  >> curl.log
+curl -X GET "http://localhost:%port%/gilhari/v1/getObjectModelSummary/now" >> curl.log
 echo. >> curl.log
 echo. >> curl.log
 
@@ -71,11 +82,25 @@ curl -X GET "http://localhost:%port%/gilhari/v1/Employee/getAggregate?attribute=
 echo. >> curl.log
 echo. >> curl.log
 
-echo ** Query all non-exempt Employee objects with only id, name, and exempt attributes (using projections operation type with operationDetails parameter)>> curl.log
-curl -G "http://localhost:%port%/gilhari/v1/Employee" --data-urlencode "filter=exempt=0" --data-urlencode "operationDetails=[{\"opType\": \"projections\", \"projectionsDetails\": [{\"type\": \"Employee\", \"attribs\": [ \"name\", \"id\", \"exempt\" ]}]}]" -H "Content-Type: application/json" >> curl.log
+echo ** Delete all exempted Employee objects >> curl.log
+curl -X DELETE "http://localhost:%port%/gilhari/v1/Employee?filter=exempt=1" >> curl.log
 echo. >> curl.log
 echo. >> curl.log
 
+echo ** Query the count of exempted Employee objects >> curl.log
+curl -X GET "http://localhost:%port%/gilhari/v1/Employee/getAggregate?attribute=id&aggregateType=COUNT&filter=exempt=1"  -H "Content-Type: application/json" >> curl.log
+echo. >> curl.log
+echo. >> curl.log
+
+echo ** Delete all Employee objects >> curl.log
+curl -X DELETE "http://localhost:%port%/gilhari/v1/Employee" >> curl.log
+echo. >> curl.log
+echo. >> curl.log
+
+echo ** Query the count of all Employee objects >> curl.log
+curl -X GET "http://localhost:%port%/gilhari/v1/Employee/getAggregate?attribute=id&aggregateType=COUNT"  -H "Content-Type: application/json" >> curl.log
+echo. >> curl.log
+echo. >> curl.log
 
 echo ** END OUTPUT ** >> curl.log
 echo. >> curl.log
